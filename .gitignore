@@ -1,0 +1,20 @@
+# Build outputs
+build/
+*.exe
+*.o
+*.obj
+
+# CMake
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+
+# VS Code
+.vscode/
+
+# Runtime data
+data/
+
+# Logs
+*.log
