@@ -3,7 +3,8 @@
 
 #include <string>
 #include <unordered_map>
-
+#include "Metadata.h"
+#include "GroupManager.h"
 // Platform guard must come BEFORE Metadata.h so PlatformMutex is defined
 #ifdef _WIN32
     #ifndef _WIN32_WINNT
@@ -23,6 +24,7 @@ private:
     PlatformMutex topicMutex;
     std::unordered_map<std::string, int> nextOffsets;
     std::unordered_map<std::string, TopicMetadata> topicsMetadata;
+    GroupManager groupManager;
 
 int getPartition(
     const std::string& topic,
@@ -51,5 +53,18 @@ long appendMessage(
 
 bool commitOffset(const std::string& topic, const std::string& consumerId, int partition, long offset); // Persist per-partition consumer offset
 long getOffset(const std::string& topic, const std::string& consumerId, int partition); // Retrieve per-partition consumer offset
+
+ bool joinGroup(const std::string& groupId, 
+                   const std::string& topic, 
+                   const std::string& consumerId);
+    
+    bool leaveGroup(const std::string& groupId, const std::string& consumerId);
+    
+    bool heartbeat(const std::string& groupId, const std::string& consumerId);
+    
+    std::vector<int> getConsumerPartitions(const std::string& groupId, 
+                                          const std::string& consumerId);
+       std::string getMessagesForConsumer(const std::string& groupId, 
+                                       const std::string& consumerId);
 };
 #endif // TOPIC_MANAGER_H

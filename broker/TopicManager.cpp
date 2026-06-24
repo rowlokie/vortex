@@ -3,6 +3,8 @@
 #include <iostream>
 #include <ctime>
 #include <algorithm>
+#include <sstream>
+#include<vector>
 #include <map>
 #ifdef _WIN32
 #include <direct.h>
@@ -337,4 +339,99 @@ void TopicManager::recover()
     }
 
     topicsMetadata[base] = std::move(meta);
+}
+
+
+// Add these methods at the end of TopicManager.cpp
+
+bool TopicManager::joinGroup(const std::string& groupId, 
+                             const std::string& topic, 
+                             const std::string& consumerId) {
+    // Check if topic exists
+    auto it = topicsMetadata.find(topic);
+    if (it == topicsMetadata.end()) {
+        std::cerr << "Topic not found: " << topic << std::endl;
+        return false;
+    }
+    
+    bool result = groupManager.joinGroup(groupId, topic, consumerId);
+    
+    if (result) {
+        // Assign partitions for this group
+        int partitionCount = it->second.partitionCount;
+        groupManager.assignPartitions(groupId, partitionCount);
+    }
+    
+    return result;
+}
+
+bool TopicManager::leaveGroup(const std::string& groupId, const std::string& consumerId) {
+    return groupManager.leaveGroup(groupId, consumerId);
+}
+
+bool TopicManager::heartbeat(const std::string& groupId, const std::string& consumerId) {
+    return groupManager.heartbeat(groupId, consumerId);
+}
+
+std::vector<int> TopicManager::getConsumerPartitions(const std::string& groupId, 
+                                                     const std::string& consumerId) {
+    return groupManager.getConsumerPartitions(groupId, consumerId);
+}
+
+std::string TopicManager::getMessagesForConsumer(const std::string& groupId, 
+                                                 const std::string& consumerId) {
+    // Get partitions assigned to this consumer
+    std::vector<int> partitions = getConsumerPartitions(groupId, consumerId);
+    
+    if (partitions.empty()) {
+        return "{\"error\":\"No partitions assigned to consumer " + consumerId + "\"}";
+    }
+    
+    // Get the topic for this group
+    std::string topic = groupManager.getGroupTopic(groupId);
+    if (topic.empty()) {
+        return "{\"error\":\"No topic found for group " + groupId + "\"}";
+    }
+    
+    std::stringstream response;
+    response << "{\"consumer\":\"" << consumerId 
+             << "\",\"group\":\"" << groupId 
+             << "\",\"topic\":\"" << topic
+             << "\",\"messages\":[";
+    
+    bool first = true;
+    bool hasMessages = false;
+    
+    for (int partition : partitions) {
+        // Get last committed offset for this consumer in this partition
+        // Use groupId:consumerId as the consumer identifier for offsets
+        std::string consumerKey = groupId + ":" + consumerId;
+        long offset = getOffset(topic, consumerKey, partition);
+        
+        // Get messages from this partition starting from the offset
+        std::string messages = getMessages(topic, partition, offset);
+        
+        // Check if we got actual messages
+        if (!messages.empty() && messages.find("No messages") == std::string::npos) {
+            if (!first) {
+                response << ",";
+            }
+            response << "{\"partition\":" << partition 
+                     << ",\"offset\":" << offset 
+                     << ",\"messages\":" << messages << "}";
+            first = false;
+            hasMessages = true;
+        }
+    }
+    
+    response << "]}";
+    
+    if (!hasMessages) {
+        return "{\"consumer\":\"" + consumerId + 
+               "\",\"group\":\"" + groupId + 
+               "\",\"topic\":\"" + topic +
+               "\",\"messages\":[],\"message\":\"No new messages\"}";
+    }
+    
+    return response.str();
 }

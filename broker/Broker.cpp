@@ -3,6 +3,7 @@
 #include <sstream>
 #include <vector>
 #include <cstring>
+#include <unordered_map>
 
 #ifndef _WIN32
 #include <thread>
